@@ -25,10 +25,18 @@ import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import eu.hansolo.medusa.Gauge;
 import eu.hansolo.medusa.GaugeBuilder;
+import org.springframework.messaging.converter.MappingJackson2MessageConverter;
+import org.springframework.messaging.simp.stomp.StompSessionHandler;
+import org.springframework.web.socket.client.WebSocketClient;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+import org.springframework.web.socket.messaging.WebSocketStompClient;
 
 import java.awt.event.ActionListener;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Scanner;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,6 +44,7 @@ import java.util.concurrent.Executors;
 
 
 public class Main extends Application {
+    public static String message;
     private static final int MAX_DATA_POINTS = 20;
     private int xSeriesData = 0;
     private XYChart.Series<Number, Number> series1 = new XYChart.Series<>();
@@ -47,6 +56,7 @@ public class Main extends Application {
 
 
     //termometro
+    Gauge gauge2;
     private int randomN;
     private Gauge gauge;
     private long lastTimerCall;
@@ -58,7 +68,7 @@ public class Main extends Application {
     Button b1= new Button();
     boolean on=false;
 
-    private void init(Stage primaryStage) {
+    private void init(Stage primaryStage) throws URISyntaxException {
 
         xAxis = new NumberAxis(0, MAX_DATA_POINTS, MAX_DATA_POINTS / 10);
         xAxis.setTickLabelsVisible(false);
@@ -85,45 +95,46 @@ public class Main extends Application {
         lineChart.getData().addAll(series1);
 
 
-        comPort = SerialPort.getCommPorts()[0];
-        comPort.openPort();
-        comPort.addDataListener(new SerialPortDataListener() {
-            @Override
-            public int getListeningEvents() { return SerialPort.LISTENING_EVENT_DATA_AVAILABLE; }
-            @Override
-            public void serialEvent(SerialPortEvent event)
-            {
-                if (event.getEventType() != SerialPort.LISTENING_EVENT_DATA_AVAILABLE)
-                    return;
-                InputStream in = comPort.getInputStream();
-                byte[] buffer = new byte[3];
-                String message = "";
-                int len = 0;
-                try {
-                    len = in.read(buffer);
-                } catch (IOException e) {}
-                if (len > 0) {
-                    message = new String(buffer);
-                }
-                try {
-                    voltage = Integer.parseInt(message.trim());
-//                    System.out.println(voltage);
-                } catch (NumberFormatException ignored) {}
-            }
-        });
-
-
+//        comPort = SerialPort.getCommPorts()[0];
+//        comPort.openPort();
+//        comPort.addDataListener(new SerialPortDataListener() {
+//            @Override
+//            public int getListeningEvents() { return SerialPort.LISTENING_EVENT_DATA_AVAILABLE; }
+//            @Override
+//            public void serialEvent(SerialPortEvent event)
+//            {
+//                if (event.getEventType() != SerialPort.LISTENING_EVENT_DATA_AVAILABLE)
+//                    return;
+//                InputStream in = comPort.getInputStream();
+//                byte[] buffer = new byte[3];
+//                String message = "";
+//                int len = 0;
+//                try {
+//                    len = in.read(buffer);
+//                } catch (IOException e) {}
+//                if (len > 0) {
+//                    message = new String(buffer);
+//                }
+//                try {
+//                    voltage = Integer.parseInt(message.trim());
+////                    System.out.println(voltage);
+//                } catch (NumberFormatException ignored) {}
+//            }
+//        });
+        ExampleClient c = new ExampleClient( new URI( "ws://192.168.43.57:8000/ws/chat/arduino/" )); // more about drafts here: http://github.com/TooTallNate/Java-WebSocket/wiki/Drafts
+        c.connect();
         /*Thermometer */
         Gauge.SkinType skin = Gauge.SkinType.LINEAR;
 
         gauge = GaugeBuilder.create()
                 .skinType(skin)
-                .title("Termometro")
+                .title("Tanquesote")
                 .titleColor(Color.RED)
                 .barColor(Color.web("#A31621"))
-                .minValue(-50)
-                .maxValue(100)
-                .value(40)
+                .minValue(0)
+                .maxValue(10)
+                .value(0)
+                .prefWidth(700)
                 .lcdVisible(true)
                 .unit("\u00B0C")
                 .build();
@@ -136,9 +147,14 @@ public class Main extends Application {
 
             @Override
             public void handle( long now ) {
-                if ( now > lastTimerCall + 2_000_000_000L ) {
+                if ( now > lastTimerCall  ) {
 //                    randomN= (int) (100 * Math.random() - 5);
+
+                    voltage = Integer.parseInt(message.trim());
                     gauge.setValue(voltage);
+                    System.out.println(voltage);
+                    gauge2.setValue(voltage);
+
                     if(voltage>50){
                         circle1.setFill(Color.web("#A31621"));
                         circle2.setFill(Color.web("#CED3DC"));
@@ -164,7 +180,7 @@ public class Main extends Application {
         grid.setHgap(10);
         grid.setVgap(10);
 
-        grid.add(lineChart, 0, 1);
+//        grid.add(lineChart, 0, 1);
         StackPane pane = new StackPane(gauge);
         b1.setText("Ledcito");
         b1.setOnAction(event -> {
@@ -183,18 +199,29 @@ public class Main extends Application {
         pane.setPadding(new Insets(20));
         pane.setNodeOrientation(NodeOrientation.LEFT_TO_RIGHT);
         grid.add(pane, 1, 1);
-        grid.add(circle1,2,1);
-        grid.add(t1,3,1);
-        grid.add(circle2,4,1);
-        grid.add(t2,5,1);
-        grid.add(b1,6,1);
+        gauge2 = GaugeBuilder.create()
+                .title("Gauge")
+                .subTitle("")
+                .minValue(0)
+                .maxValue(10)
+                .value(0)
+                .unit("Litros")
+                .build();
+
+
+        grid.add(gauge2,2,1);
+//        grid.add(circle1,2,1);
+//        grid.add(t1,3,1);
+//        grid.add(circle2,4,1);
+//        grid.add(t2,5,1);
+//        grid.add(b1,6,1);
 
 
         primaryStage.setScene(new Scene(grid));
     }
 
     @Override
-    public void start(Stage stage) {
+    public void start(Stage stage) throws URISyntaxException {
         stage.setTitle("Potenciometro");
         init(stage);
         stage.show();
